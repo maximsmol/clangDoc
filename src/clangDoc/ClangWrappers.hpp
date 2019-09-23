@@ -23,6 +23,10 @@ namespace clangw {
   class Index;
   class TranslationUnit;
 
+  namespace token {
+    enum class Kind;
+  }
+
   struct Token;
   struct UnmanagedToken;
   class SingularToken;
@@ -351,10 +355,72 @@ namespace clangw {
       CXTranslationUnit u_;
   };
 
+
+  namespace token {
+    // @|url https://clang.llvm.org/doxygen/group__CINDEX__LEX.html#gaf63e37eee4280e2c039829af24bbc201
+    enum class Kind {
+      // CXToken_Punctuation
+      Punctuation,
+      // CXToken_Keyword
+      Keyword,
+      // CXToken_Identifier
+      Identifier,
+      // CXToken_Literal
+      Literal,
+      // CXToken_Comment
+      Comment
+    };
+
+    namespace kind {
+      constexpr CXTokenKind toCXEnum(const Kind k) noexcept {
+        if (k == Kind::Punctuation)
+          return CXToken_Punctuation;
+        else if (k == Kind::Keyword)
+          return CXToken_Keyword;
+        else if (k == Kind::Identifier)
+          return CXToken_Identifier;
+        else if (k == Kind::Literal)
+          return CXToken_Literal;
+        else /*if (k == Kind::Comment)*/
+          return CXToken_Comment;
+      }
+      constexpr Kind fromCXEnum(const CXTokenKind k) noexcept {
+        if (k == CXToken_Punctuation)
+          return Kind::Punctuation;
+        else if (k == CXToken_Keyword)
+          return Kind::Keyword;
+        else if (k == CXToken_Identifier)
+          return Kind::Identifier;
+        else if (k == CXToken_Literal)
+          return Kind::Literal;
+        else /*if (k == CXToken_Comment) */
+          return Kind::Comment;
+      }
+
+      constexpr const char* toString(const Kind k) noexcept {
+        if (k == Kind::Punctuation)
+          return "Punctuation";
+        else if (k == Kind::Keyword)
+          return "Keyword";
+        else if (k == Kind::Identifier)
+          return "Identifier";
+        else if (k == Kind::Literal)
+          return "Literal";
+        else /*if (k == Kind::Comment)*/
+          return "Comment";
+      }
+    }
+  }
+
   // Base class for token-managing classes.
   // @|url https://clang.llvm.org/doxygen/structCXToken.html
   struct TokenBase {
     public:
+      // @|url https://clang.llvm.org/doxygen/group__CINDEX__LEX.html#ga83f692a67fe4dbeea779f37c0a3b7f20
+      token::Kind kind() {
+        return token::kind::fromCXEnum(clang_getTokenKind(getUnderlyingToken_()));
+      }
+
       // @|url https://clang.llvm.org/doxygen/group__CINDEX__LEX.html#ga1033a25c9d2c59bcbdb23020de0bba2c
       String spelling() {
         return String(clang_getTokenSpelling(tu_->unsafeRaw(), getUnderlyingToken_()));
@@ -363,6 +429,11 @@ namespace clangw {
       // @|url https://clang.llvm.org/doxygen/group__CINDEX__LEX.html#ga76a721514acb4cc523e10a6913d88021
       CXSourceLocation location() {
         return clang_getTokenLocation(tu_->unsafeRaw(), getUnderlyingToken_());
+      }
+
+      // @|url https://clang.llvm.org/doxygen/group__CINDEX__LEX.html#ga5acbc0a2a3c01aa44e1c5c5ccc4e328b
+      CXSourceRange extent() {
+        return clang_getTokenExtent(tu_->unsafeRaw(), getUnderlyingToken_());
       }
 
     protected:
@@ -475,14 +546,24 @@ namespace clangw {
         return Token(std::shared_ptr(tu_), rawTokenAt(i));
       }
 
+      // @|url https://clang.llvm.org/doxygen/group__CINDEX__LEX.html#ga83f692a67fe4dbeea779f37c0a3b7f20
+      token::Kind kindOfTokenAt(unsigned int i) {
+        return token::kind::fromCXEnum(clang_getTokenKind(rawTokenAt(i)));
+      }
+
       // @|url https://clang.llvm.org/doxygen/group__CINDEX__LEX.html#ga1033a25c9d2c59bcbdb23020de0bba2c
-      String spellingAt(unsigned int i) {
+      String spellingOfTokenAt(unsigned int i) {
         return String(clang_getTokenSpelling(tu_->unsafeRaw(), rawTokenAt(i)));
       }
 
       // @|url https://clang.llvm.org/doxygen/group__CINDEX__LEX.html#ga76a721514acb4cc523e10a6913d88021
-      CXSourceLocation locationAt(unsigned int i) {
+      CXSourceLocation locationOfTokenAt(unsigned int i) {
         return clang_getTokenLocation(tu_->unsafeRaw(), rawTokenAt(i));
+      }
+
+      // @|url https://clang.llvm.org/doxygen/group__CINDEX__LEX.html#ga5acbc0a2a3c01aa44e1c5c5ccc4e328b
+      CXSourceRange extentOfTokenAt(unsigned int i) {
+        return clang_getTokenExtent(tu_->unsafeRaw(), rawTokenAt(i));
       }
 
     private:
