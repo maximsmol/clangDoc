@@ -14,15 +14,28 @@ int main() {
     nullptr, 0
   ));
 
-  Cursor root = tu->getRootCursor();
-
   TokenArray ta{shared_ptr<TranslationUnit>(tu)};
 
+  bool lookingForDecl = false;
+  unsigned int commentAt = 0;
+
   for (unsigned int n = 0; n < ta.size(); ++n) {
-    if (ta.kindOfTokenAt(n) != token::Kind::Comment)
+    if (ta.kindOfTokenAt(n) == token::Kind::Comment) {
+      lookingForDecl = true;
+      commentAt = n;
+      continue;
+    }
+
+    if (!lookingForDecl)
       continue;
 
-    printf("%s: %s\n", token::kind::toString(ta.kindOfTokenAt(n)), ta.spellingOfTokenAt(n).cstr());
+    Cursor c = tu->cursorAt(ta.locationOfTokenAt(n));
+    if (!c.kind().declaration())
+      continue;
+
+    lookingForDecl = false;
+
+    printf("%s\n%s (%s)\n", ta.spellingOfTokenAt(commentAt).cstr(), c.spelling().cstr(), c.kind().spelling().cstr());
   }
 
   /*root.visitChildren([](Cursor c, Cursor, CXClientData) {

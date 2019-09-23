@@ -324,8 +324,13 @@ namespace clangw {
       }
 
       // @|url https://clang.llvm.org/doxygen/group__CINDEX__CURSOR__MANIP.html#gaec6e69127920785e74e4a517423f4391
-      Cursor getRootCursor() {
+      Cursor rootCursor() {
         return Cursor(clang_getTranslationUnitCursor(unsafeRaw()));
+      }
+
+      // @|url https://clang.llvm.org/doxygen/group__CINDEX__CURSOR__SOURCE.html#ga30a9972c7e099ab2735fa6c45e247ec8
+      Cursor cursorAt(CXSourceLocation loc) {
+        return Cursor(clang_getCursor(unsafeRaw(), loc));
       }
 
     private:
@@ -504,7 +509,7 @@ namespace clangw {
   class TokenArray {
     public:
       TokenArray(std::shared_ptr<TranslationUnit>&& tu) :
-        TokenArray(std::move(tu), tu->getRootCursor().extent())
+        TokenArray(std::move(tu), tu->rootCursor().extent())
       {}
 
       TokenArray(std::shared_ptr<TranslationUnit>&& tu, CXSourceRange range) :
