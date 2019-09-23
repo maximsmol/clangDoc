@@ -13,11 +13,20 @@
 namespace clangw {
   struct clangerr;
 
+  class String;
+
+  namespace cursor {
+    struct Kind;
+  }
+  struct Cursor; // @| todo: cursors are currently always copied, might wanna make them reference-based instead
+
   class Index;
   class TranslationUnit;
-  class String;
-  struct Kind;
-  struct Cursor;
+
+  struct Token;
+  struct UnmanagedToken;
+  class SingularToken;
+  class TokenArray;
 
   constexpr const char* describeClangError(const int code);
 }
@@ -269,7 +278,7 @@ namespace clangw {
         swap(a.i_, b.i_);
       }
 
-      mimpl_any_const_getter(CXIndex, Index, unsafeRaw,) {
+      mimpl_any_const_getter(CXIndex, Index, unsafeRaw) {
         assert(i_ != nullptr);
         return i_;
       }
@@ -305,7 +314,7 @@ namespace clangw {
         swap(a.u_, b.u_);
       }
 
-      mimpl_any_const_getter(CXTranslationUnit, TranslationUnit, unsafeRaw,) {
+      mimpl_any_const_getter(CXTranslationUnit, TranslationUnit, unsafeRaw) {
         assert(u_ != nullptr);
         return u_;
       }
@@ -321,8 +330,8 @@ namespace clangw {
         i_(nullptr),
         u_(nullptr)
       {}
-      // todo: @|{CXUnsavedFile
-      // todo: @|{.flags
+      // @|todo @|{CXUnsavedFile
+      // @|todo @|{.flags
       // @|url https://clang.llvm.org/doxygen/group__CINDEX__TRANSLATION__UNIT.html#ga494de0e725c5ae40cbdea5fa6081027d
       TranslationUnit(
         std::shared_ptr<Index>&& i, const char* path,
@@ -340,6 +349,152 @@ namespace clangw {
 
       std::shared_ptr<Index> i_;
       CXTranslationUnit u_;
+  };
+
+  // Base class for token-managing classes.
+  // @|url https://clang.llvm.org/doxygen/structCXToken.html
+  struct TokenBase {
+    public:
+      // @|url https://clang.llvm.org/doxygen/group__CINDEX__LEX.html#ga1033a25c9d2c59bcbdb23020de0bba2c
+      String spelling() {
+        return String(clang_getTokenSpelling(tu_->unsafeRaw(), getUnderlyingToken_()));
+      }
+
+      // @|url https://clang.llvm.org/doxygen/group__CINDEX__LEX.html#ga76a721514acb4cc523e10a6913d88021
+      CXSourceLocation location() {
+        return clang_getTokenLocation(tu_->unsafeRaw(), getUnderlyingToken_());
+      }
+
+    protected:
+      TokenBase(std::shared_ptr<TranslationUnit>&& tu) :
+        tu_(tu)
+      {}
+
+      mimpl_any_const_getter(CXToken&, TokenBase, getUnderlyingToken_);
+
+      std::shared_ptr<TranslationUnit> tu_;
+  };
+
+  // Stores a token structure.
+  struct Token : public TokenBase {
+    public:
+      Token(std::shared_ptr<TranslationUnit>&& tu, CXToken tok) :
+        TokenBase(std::move(tu)),
+        raw(tok)
+      {}
+
+      CXToken raw;
+
+    protected:
+      const CXToken& getUnderlyingToken_() const {
+        return raw;
+      }
+  };
+
+  // Manages a token returned by @|{clang_getToken@|}.
+  class SingularToken : public TokenBase {
+    public:
+      SingularToken(std::shared_ptr<TranslationUnit>&& tu, CXSourceLocation loc) :
+        TokenBase(std::move(tu)),
+        raw_(clang_getToken(tu_->unsafeRaw(), loc))
+      {
+        assert(raw_ != nullptr); // @|todo properly handle this
+      }
+
+      // @|url https://clang.llvm.org/doxygen/group__CINDEX__LEX.html#gac5266f6b5fee87c433b696437cab0d13
+      ~SingularToken() {
+        if (raw_ != nullptr)
+          clang_disposeTokens(tu_->unsafeRaw(), raw_, 1);
+        raw_ = nullptr;
+      }
+
+      mimpl_cpp_nocopy(SingularToken)
+      mimpl_cpp_copy_and_swap(SingularToken) {
+        using std::swap;
+        swap(a.raw_, b.raw_);
+      }
+
+    protected:
+      const CXToken& getUnderlyingToken_() const {
+        assert(raw_ != nullptr);
+        return *raw_;
+      }
+
+    private:
+      SingularToken() :
+        TokenBase(nullptr),
+        raw_(nullptr)
+      {}
+
+      CXToken* raw_;
+  };
+
+  // Manages an array of tokens returned by @|{https://clang.llvm.org/doxygen/group__CINDEX__LEX.html#ga6b315a71102d4f6c95eb68894a3bda8a}.
+  class TokenArray {
+    public:
+      TokenArray(std::shared_ptr<TranslationUnit>&& tu) :
+        TokenArray(std::move(tu), tu->getRootCursor().extent())
+      {}
+
+      TokenArray(std::shared_ptr<TranslationUnit>&& tu, CXSourceRange range) :
+        tu_(tu)
+      {
+        clang_tokenize(tu_->unsafeRaw(), range, &raw_, &n_);
+
+        assert(raw_ != nullptr); // @|todo may this be null if n is zero?
+      }
+      ~TokenArray() {
+        if (raw_ != nullptr)
+          clang_disposeTokens(tu_->unsafeRaw(), raw_, n_);
+        raw_ = nullptr;
+        n_ = 0;
+      }
+
+      mimpl_cpp_nocopy(TokenArray)
+      mimpl_cpp_copy_and_swap(TokenArray) {
+        using std::swap;
+        swap(a.raw_, b.raw_);
+        swap(a.n_, b.n_);
+      }
+
+      mimpl_any_const_getter(CXToken*, TokenArray, unsafeRaw) {
+        assert(raw_ != nullptr);
+        return raw_;
+      }
+
+      unsigned int size() const {
+        return n_;
+      }
+
+      mimpl_any_const_getter_args(CXToken&, TokenArray, rawTokenAt, (unsigned int i), (i)) {
+        assert(i < size());
+        return unsafeRaw()[i];
+      }
+
+      Token copyOfTokenAt(unsigned int i) {
+        return Token(std::shared_ptr(tu_), rawTokenAt(i));
+      }
+
+      // @|url https://clang.llvm.org/doxygen/group__CINDEX__LEX.html#ga1033a25c9d2c59bcbdb23020de0bba2c
+      String spellingAt(unsigned int i) {
+        return String(clang_getTokenSpelling(tu_->unsafeRaw(), rawTokenAt(i)));
+      }
+
+      // @|url https://clang.llvm.org/doxygen/group__CINDEX__LEX.html#ga76a721514acb4cc523e10a6913d88021
+      CXSourceLocation locationAt(unsigned int i) {
+        return clang_getTokenLocation(tu_->unsafeRaw(), rawTokenAt(i));
+      }
+
+    private:
+      TokenArray() :
+        tu_(nullptr),
+        raw_(nullptr),
+        n_(0)
+      {}
+
+      std::shared_ptr<TranslationUnit> tu_;
+      CXToken* raw_;
+      unsigned int n_;
   };
 
   constexpr const char* describeClangError(const int code) {
