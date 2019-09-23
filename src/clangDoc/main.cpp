@@ -16,26 +16,32 @@ int main() {
 
   TokenArray ta{shared_ptr<TranslationUnit>(tu)};
 
-  bool lookingForDecl = false;
-  unsigned int commentAt = 0;
+  Cursor lastDecl{};
+  unsigned int lastComment = 0;
+  bool justFoundComment = false;
 
   for (unsigned int n = 0; n < ta.size(); ++n) {
-    if (ta.kindOfTokenAt(n) == token::Kind::Comment) {
-      lookingForDecl = true;
-      commentAt = n;
+    if (ta.kindOfTokenAt(n) == token::Kind::comment) {
+      lastComment = n;
+      justFoundComment = true;
       continue;
     }
 
-    if (!lookingForDecl)
+    if (ta.kindOfTokenAt(n) != token::Kind::identifier)
       continue;
 
     Cursor c = tu->cursorAt(ta.locationOfTokenAt(n));
     if (!c.kind().declaration())
       continue;
 
-    lookingForDecl = false;
+    if (justFoundComment)
+      printf("%s (%s)\n%s\n%s (%s)\n",
+        lastDecl.spelling().cstr(), lastDecl.kind().spelling().cstr(),
+        ta.spellingOfTokenAt(lastComment).cstr(),
+        c.spelling().cstr(), c.kind().spelling().cstr());
+    justFoundComment = false;
 
-    printf("%s\n%s (%s)\n", ta.spellingOfTokenAt(commentAt).cstr(), c.spelling().cstr(), c.kind().spelling().cstr());
+    lastDecl = c;
   }
 
   /*root.visitChildren([](Cursor c, Cursor, CXClientData) {

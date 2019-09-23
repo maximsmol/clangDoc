@@ -15,16 +15,21 @@ namespace clangw {
 
   class String;
 
+  // using CursorVisitor;
+  struct Cursor; // @| todo: cursors are currently always copied, might wanna make them reference-based instead
   namespace cursor {
     struct Kind;
+    Cursor null() noexcept;
   }
-  struct Cursor; // @| todo: cursors are currently always copied, might wanna make them reference-based instead
 
   class Index;
   class TranslationUnit;
 
   namespace token {
     enum class Kind;
+    constexpr CXTokenKind toCXEnum(const Kind k) noexcept;
+    constexpr Kind fromCXEnum(const CXTokenKind k) noexcept;
+    constexpr const char* toString(const Kind k) noexcept;
   }
 
   struct Token;
@@ -145,6 +150,11 @@ namespace clangw {
   using CursorVisitor = CXChildVisitResult (Cursor c, Cursor parent, CXClientData data);
   struct Cursor {
     public:
+      // @|url https://clang.llvm.org/doxygen/group__CINDEX__CURSOR__MANIP.html#ga94d81bbf40dff4ac843458d018f3138e
+      Cursor() :
+        raw(clang_getNullCursor())
+      {}
+
       Cursor(CXCursor c) :
         raw(c)
       {}
@@ -365,54 +375,54 @@ namespace clangw {
     // @|url https://clang.llvm.org/doxygen/group__CINDEX__LEX.html#gaf63e37eee4280e2c039829af24bbc201
     enum class Kind {
       // CXToken_Punctuation
-      Punctuation,
+      punctuation,
       // CXToken_Keyword
-      Keyword,
+      keyword,
       // CXToken_Identifier
-      Identifier,
+      identifier,
       // CXToken_Literal
-      Literal,
+      literal,
       // CXToken_Comment
-      Comment
+      comment
     };
 
     namespace kind {
       constexpr CXTokenKind toCXEnum(const Kind k) noexcept {
-        if (k == Kind::Punctuation)
+        if (k == Kind::punctuation)
           return CXToken_Punctuation;
-        else if (k == Kind::Keyword)
+        else if (k == Kind::keyword)
           return CXToken_Keyword;
-        else if (k == Kind::Identifier)
+        else if (k == Kind::identifier)
           return CXToken_Identifier;
-        else if (k == Kind::Literal)
+        else if (k == Kind::literal)
           return CXToken_Literal;
-        else /*if (k == Kind::Comment)*/
+        else /*if (k == Kind::comment)*/
           return CXToken_Comment;
       }
       constexpr Kind fromCXEnum(const CXTokenKind k) noexcept {
         if (k == CXToken_Punctuation)
-          return Kind::Punctuation;
+          return Kind::punctuation;
         else if (k == CXToken_Keyword)
-          return Kind::Keyword;
+          return Kind::keyword;
         else if (k == CXToken_Identifier)
-          return Kind::Identifier;
+          return Kind::identifier;
         else if (k == CXToken_Literal)
-          return Kind::Literal;
+          return Kind::literal;
         else /*if (k == CXToken_Comment) */
-          return Kind::Comment;
+          return Kind::comment;
       }
 
       constexpr const char* toString(const Kind k) noexcept {
-        if (k == Kind::Punctuation)
-          return "Punctuation";
-        else if (k == Kind::Keyword)
-          return "Keyword";
-        else if (k == Kind::Identifier)
-          return "Identifier";
-        else if (k == Kind::Literal)
-          return "Literal";
-        else /*if (k == Kind::Comment)*/
-          return "Comment";
+        if (k == Kind::punctuation)
+          return "punctuation";
+        else if (k == Kind::keyword)
+          return "keyword";
+        else if (k == Kind::identifier)
+          return "identifier";
+        else if (k == Kind::literal)
+          return "literal";
+        else /*if (k == Kind::comment)*/
+          return "comment";
       }
     }
   }

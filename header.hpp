@@ -9,7 +9,7 @@ class MyClass {
 
     /* test again */
 
-    static const int static_field;
+    static const int static_field; // abc
     static int static_method();
 
     // test
